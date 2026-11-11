@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// QUẢN LÝ BÀI VIẾT (TẢN VĂN & Y LÝ)
+// ==========================================
+model Post {
+  id          String         @id @default(cuid())
+  title       String
+  slug        String         @unique
+  category    String?
+  excerpt     String?        @db.Text
+  content     String         @db.LongText
+  coverImage  String?
+  showCover   Boolean        @default(true) 
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  revisions   PostRevision[]
+}
+
+model PostRevision {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   @db.LongText
+  savedAt   DateTime @default(now())
+}
+
+// ==========================================
+// TÀI KHOẢN NGƯỜI DÙNG & ADMIN
+// ==========================================
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  avatar    String?  // <-- THÊM DÒNG NÀY
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+// ==========================================
+// TỦ SÁCH & THƯƠNG MẠI (E-COMMERCE)
+// ==========================================
+model Product {
+  id          String      @id @default(uuid())
+  sku         String      @unique 
+  title       String
+  slug        String      @unique
+  category    String      @default("Tủ sách")
+  price       Int       
+  discount    Int         @default(0) 
+  coverImage  String?
+  description String?     @db.Text
+  inStock     Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Liên kết: Một cuốn sách có thể nằm trong nhiều Chi tiết Đơn hàng
+  orderItems  OrderItem[]
+}
+
+enum OrderStatus {
+  PENDING    // Chờ thanh toán
+  PAID       // Đã thanh toán (Admin duyệt)
+  SHIPPED    // Đang giao
+  CANCELLED  // Đã hủy
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  
+  // Liên kết user (Khách vãng lai mua hàng thì userId = null)
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id])
+  
+  // Thông tin giao hàng
+  customerName  String
+  customerEmail String
+  customerPhone String
+  address       String
+  note          String?
+
+  // Tài chính
+  subTotal      Int
+  discount      Int         @default(0)
+  shippingFee   Int         @default(0) 
+  totalAmount   Int
+  
+  paymentMethod String      @default("QR") 
+  status        OrderStatus @default(PENDING)
+  
+  // Liên kết: Một đơn hàng có nhiều Chi tiết Đơn hàng (Nhiều loại sách)
+  orderItems    OrderItem[]
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  quantity  Int
+  price     Int      // Chốt giá ngay tại thời điểm mua (Tránh lỗi thay đổi giá sau này)
+}
